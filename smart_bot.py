@@ -1,5 +1,6 @@
 import os
 import threading
+import logging
 from http.server import HTTPServer, BaseHTTPRequestHandlerimport logging
 import logging
 import wikipedia
