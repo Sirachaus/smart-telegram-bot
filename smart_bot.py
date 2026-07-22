@@ -1,9 +1,9 @@
 import os
 import threading
 import logging
-from http.server import HTTPServer, BaseHTTPRequestHandlerimport logging
-import logging
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import wikipedia
+
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
