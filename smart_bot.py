@@ -10,6 +10,14 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 # Your Telegram Bot Token
 TOKEN = '8819821570:AAF1FI5UpWd3_l1E8jPSkjn07nnSlrhWl0k'
 
+def run_web_server():
+        port = int(os.environ.get("PORT", 10000))
+        server_address = ("0.0.0.0", port)
+        httpd = HTTPServer(server_address, BaseHTTPRequestHandler)
+        httpd.serve_forever()
+
+# Start dummy server in a thread
+threading.Thread(target=run_web_server, daemon=True).start()
 # Configure Wikipedia language to English
 wikipedia.set_lang("en")
 
