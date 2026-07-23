@@ -8,10 +8,13 @@ import threading
 import requests
 import pandas as pd
 
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
 # --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN", "8819821570:AAHEr51vK...") 
 ALLOWED_USER_IDS = [6124380017]
-TRADING_SYMBOL = "BTCUSDT"  # You can change this to any major pair
+TRADING_SYMBOL = "BTCUSDT"
 
 # Setup logging
 logging.basicConfig(
@@ -50,7 +53,6 @@ def fetch_and_analyze_market():
         response = requests.get(url, timeout=10)
         data = response.json()
         
-        # Parse data into a Pandas DataFrame
         columns = [
             'open_time', 'open', 'high', 'low', 'close', 'volume',
             'close_time', 'quote_asset_volume', 'num_trades',
@@ -58,13 +60,11 @@ def fetch_and_analyze_market():
         ]
         df = pd.DataFrame(data, columns=columns)
         
-        # Convert numeric columns to float
         df['high'] = df['high'].astype(float)
         df['low'] = df['low'].astype(float)
         df['open'] = df['open'].astype(float)
         df['close'] = df['close'].astype(float)
         
-        # Calculate highest high wick and lowest low wick across the dataset
         highest_wick = df['high'].max()
         lowest_wick = df['low'].min()
         current_price = df['close'].iloc[-1]
@@ -83,11 +83,6 @@ def fetch_and_analyze_market():
 
 # --- MARKET WICK & ANALYSIS SCANNER LOOP ---
 async def market_wick_scanner(application):
-    """
-    Automated background loop running daily in US Eastern Time:
-    - Scans at 12:45 PM for initial high/low market wicks.
-    - Scans/adjusts at 1:29 PM for institutional levels.
-    """
     eastern_tz = pytz.timezone('America/New_York')
     
     while True:
@@ -130,7 +125,6 @@ async def market_wick_scanner(application):
         await asyncio.sleep(30)
 
 async def post_init(application):
-    """Initializes background tasks when the bot starts up."""
     asyncio.create_task(market_wick_scanner(application))
 
 # --- TELEGRAM COMMAND HANDLERS ---
@@ -163,11 +157,9 @@ async def create_promo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- MAIN EXECUTION ---
 def main():
-    # Start web server thread
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    # Build Telegram Bot Application
     application = (
         ApplicationBuilder()
         .token(TOKEN)
@@ -179,12 +171,10 @@ def main():
         .build()
     )
 
-    # Register Command Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("scan", manual_scan))
     application.add_handler(CommandHandler("promo", create_promo))
 
-    # Run polling loop
     application.run_polling()
 
 if __name__ == "__main__":
