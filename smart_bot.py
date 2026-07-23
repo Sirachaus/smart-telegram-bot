@@ -1,4 +1,4 @@
-
+8819821570:AAEa0--l0oSAFaDka1HeWmtIpU45eh2d0SE
 
 import os
 import glob
@@ -281,9 +281,10 @@ async def usa_time_loop(app):
                     msg = f"🔔 *Automated USA Market Loop Triggered ({time_str} EST)*\nChecking key assets for high/low wicks, adjustments, and news..."
                     await app.bot.send_message(chat_id=ALERT_CHAT_ID, text=msg, parse_mode="Markdown")
 
-                    # Auto scan major benchmark (S&P 500)
-                    for symbol in ["^GSPC", "BTC-USD"]:
-                        try:
+                    # Auto scan S&P 500, Bitcoin, Gold, and EUR/USD
+for symbol in ["^GSPC", "BTC-USD", "GC=F", "EURUSD=X"]:
+
+                       
                             df = yf.Ticker(symbol).history(period="1mo", interval="1d")
                             if not df.empty and len(df) >= 14:
                                 tech = analyze_candles_and_levels(df)
@@ -338,13 +339,6 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
-
-
-
-
-
-
 
 
 
