@@ -12,7 +12,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- CONFIGURATION ---
-TOKEN = os.environ.get("BOT_TOKEN", "8819821570:AAHEr51vK...") 
+TOKEN = "8819821570:AAHWqwkMVMUOWEWwOaL-DcrSveEVvZphSY4"
 ALLOWED_USER_IDS = [6124380017]
 TRADING_SYMBOL = "BTCUSDT"
 
