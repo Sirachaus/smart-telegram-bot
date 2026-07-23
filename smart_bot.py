@@ -33,7 +33,6 @@ ai_client = genai.Client(api_key=GEMINI_KEY) if GEMINI_KEY else None
 
 
 def is_authorized(user_id: int) -> bool:
-    """Checks whether the requesting user is in the authorized users list."""
     if not ALLOWED_USER_IDS:
         return True
     return user_id in ALLOWED_USER_IDS
@@ -48,7 +47,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"OK")
 
     def log_message(self, format, *args):
-        return  # Suppress HTTP server logging noise
+        return
 
 
 def run_web_server():
@@ -69,7 +68,6 @@ logging.basicConfig(
 
 # --- DATABASE / SELF-LEARNING ENGINE ---
 def init_db():
-    """Initializes local SQLite database for trade history tracking."""
     conn = sqlite3.connect('bot_learning.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -86,7 +84,6 @@ def init_db():
 
 
 def record_analysis(symbol: str, signal: str, price: float):
-    """Records market scans to build historical memory."""
     conn = sqlite3.connect('bot_learning.db')
     cursor = conn.cursor()
     cursor.execute(
@@ -117,7 +114,6 @@ def compute_rsi(data, window=14):
 
 
 def analyze_candles_and_levels(df):
-    """Calculates highest/lowest wicks, key support/resistance, and dynamic SL/TP levels."""
     latest = df.iloc[-1]
     current_price = latest['Close']
     high_wick = df['High'].tail(10).max()
@@ -155,7 +151,6 @@ def analyze_candles_and_levels(df):
 
 
 def fetch_financial_news():
-    """Fetches top financial headlines via RSS news scraping."""
     url = "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^GSPC&region=US&lang=en-US"
     try:
         resp = requests.get(url, timeout=10)
@@ -216,7 +211,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(response.text)
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+        await update.message.reply_text(f"⚠️ Gemini API Error / Quota Exceeded: {e}")
 
 
 async def wiki(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -292,7 +287,7 @@ async def trade_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not context.args:
-        await update.message.reply_text("Specify an asset ticker! Examples: `/trade GC=F` (Gold) or `/trade EURUSD=X`")
+        await update.message.reply_text("Specify an asset ticker! Examples: `/trade GC=F` or `/trade EURUSD=X`")
         return
 
     symbol = context.args[0].upper()
@@ -310,34 +305,44 @@ async def trade_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tech = analyze_candles_and_levels(df)
         news = fetch_financial_news()
 
-        prompt = (
-            f"Act as a professional market strategist. Analyze symbol {symbol}:\n"
-            f"- Current Price: ${tech['current_price']:.4f}\n"
-            f"- Highest Wick (10d): ${tech['high_wick']:.4f}\n"
-            f"- Lowest Wick (10d): ${tech['low_wick']:.4f}\n"
-            f"- 20-Day SMA: ${tech['ma_20']:.4f}\n"
-            f"- 14-Day RSI: {rsi:.2f}\n"
-            f"- Signal: {tech['signal']}\n"
-            f"- Calculated Stop Loss: ${tech['stop_loss']:.4f}\n"
-            f"- Calculated Take Profit: ${tech['take_profit']:.4f}\n"
-            f"- Market News Headlines:\n{news}\n\n"
-            f"Provide a summary with Market Bias, Setup Plan, and Exact SL/TP Targets."
+        # Fallback raw output structure
+        report = (
+            f"📊 *Technical Analysis Output*\n\n"
+            f"• Signal: *{tech['signal']}*\n"
+            f"• Current Price: `${tech['current_price']:.4f}`\n"
+            f"• 10d High Wick: `${tech['high_wick']:.4f}`\n"
+            f"• 10d Low Wick: `${tech['low_wick']:.4f}`\n"
+            f"• 20 SMA: `${tech['ma_20']:.4f}`\n"
+            f"• RSI (14): `{rsi:.2f}`\n\n"
+            f"🎯 *Calculated Target Levels*\n"
+            f"• Stop Loss: `${tech['stop_loss']:.4f}`\n"
+            f"• Take Profit: `${tech['take_profit']:.4f}`"
         )
 
+        # Attempt AI enhancement if key is available and quota allows
         if ai_client:
-            response = ai_client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt,
-            )
-            report = response.text
-        else:
-            report = (
-                f"• Signal: *{tech['signal']}*\n"
-                f"• Price: ${tech['current_price']:.4f}\n"
-                f"• High Wick: ${tech['high_wick']:.4f} | Low Wick: ${tech['low_wick']:.4f}\n"
-                f"• Stop Loss: ${tech['stop_loss']:.4f}\n"
-                f"• Take Profit: ${tech['take_profit']:.4f}\n"
-            )
+            try:
+                prompt = (
+                    f"Act as a professional market strategist. Analyze symbol {symbol}:\n"
+                    f"- Current Price: ${tech['current_price']:.4f}\n"
+                    f"- Highest Wick (10d): ${tech['high_wick']:.4f}\n"
+                    f"- Lowest Wick (10d): ${tech['low_wick']:.4f}\n"
+                    f"- 20-Day SMA: ${tech['ma_20']:.4f}\n"
+                    f"- 14-Day RSI: {rsi:.2f}\n"
+                    f"- Signal: {tech['signal']}\n"
+                    f"- Calculated Stop Loss: ${tech['stop_loss']:.4f}\n"
+                    f"- Calculated Take Profit: ${tech['take_profit']:.4f}\n"
+                    f"- News:\n{news}\n\n"
+                    f"Provide a summary with Market Bias, Setup Plan, and SL/TP Targets."
+                )
+                response = ai_client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=prompt,
+                )
+                if response.text:
+                    report = response.text
+            except Exception as ai_err:
+                logging.warning(f"AI generation failed/quota hit, returning technical analysis fallback: {ai_err}")
 
         await update.message.reply_text(f"📈 *Trade Analysis: `{symbol}`*\n\n{report}", parse_mode="Markdown")
 
@@ -347,7 +352,6 @@ async def trade_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- AUTOMATED USA TIME SCHEDULER LOOP ---
 async def usa_time_loop(app):
-    """Monitors US Eastern Time and sends auto-alerts at 13:29 EST and 14:45 EST for Gold, EURUSD, BTC, and S&P 500."""
     est_tz = pytz.timezone('US/Eastern')
     triggered_today = set()
 
@@ -393,7 +397,6 @@ async def usa_time_loop(app):
 
 
 async def post_init(app):
-    """Starts background loops once the application is initialized."""
     asyncio.create_task(usa_time_loop(app))
 
 
