@@ -211,7 +211,7 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🧠 Thinking...")
     try:
         response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
         )
         await update.message.reply_text(response.text)
@@ -326,7 +326,7 @@ async def trade_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if ai_client:
             response = ai_client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-2.0-flash',
                 contents=prompt,
             )
             report = response.text
