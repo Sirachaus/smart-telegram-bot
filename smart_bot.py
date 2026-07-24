@@ -13,7 +13,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- CONFIGURATION ---
 TOKEN = "8819821570:AAHWqwkMVMUOWEWwOaL-DcrSveEVvZphSY4"
-ALLOWED_USER_IDS = [6124380017]
+ALLOWED_USER_IDS = [6124380017]  # Strict personal access control
 TRADING_SYMBOL = "BTCUSDT"
 
 # Setup logging
@@ -44,10 +44,6 @@ def run_web_server():
 
 # --- LIVE MARKET DATA & WICK ANALYSIS MODULE ---
 def fetch_and_analyze_market():
-    """
-    Fetches real-time candlestick data using pandas 
-    and calculates the highest and lowest wicks.
-    """
     try:
         url = f"https://api.binance.com/api/v3/klines?symbol={TRADING_SYMBOL}&interval=15m&limit=20"
         response = requests.get(url, timeout=10)
@@ -91,7 +87,6 @@ async def market_wick_scanner(application):
             current_hour = now_eastern.hour
             current_minute = now_eastern.minute
             
-            # 12:45 PM USA Time Scan
             if current_hour == 12 and current_minute == 45:
                 logger.info("Executing 12:45 PM USA Market Wick Scan...")
                 market_report = fetch_and_analyze_market()
@@ -105,7 +100,6 @@ async def market_wick_scanner(application):
                         logger.error(f"Failed to send 12:45 alert: {e}")
                 await asyncio.sleep(70)
 
-            # 1:29 PM USA Time Adjustment Scan
             elif current_hour == 13 and current_minute == 29:
                 logger.info("Executing 1:29 PM USA Market Adjustment Scan...")
                 market_report = fetch_and_analyze_market()
@@ -149,12 +143,6 @@ async def manual_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     report = fetch_and_analyze_market()
     await update.message.reply_text(report)
 
-async def create_promo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_authorized(user_id):
-        return
-    await update.message.reply_text("🎨 Asset generation pipeline initialized.")
-
 # --- MAIN EXECUTION ---
 def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
@@ -173,7 +161,6 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("scan", manual_scan))
-    application.add_handler(CommandHandler("promo", create_promo))
 
     application.run_polling()
 
