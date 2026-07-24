@@ -9,14 +9,13 @@ import requests
 import pandas as pd
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 # --- CONFIGURATION ---
 TOKEN = "8819821570:AAHWqwkMVMUOWEWwOaL-DcrSveEVvZphSY4"
-ALLOWED_USER_IDS = [6124380017]  # Strict personal access control
+ALLOWED_USER_IDS = [6124380017]
 TRADING_SYMBOL = "BTCUSDT"
 
-# Setup logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -28,7 +27,7 @@ def is_authorized(user_id: int) -> bool:
         return True
     return user_id in ALLOWED_USER_IDS
 
-# --- DUMMY WEB SERVER (For Cloud Hosting Health Checks) ---
+# --- WEB SERVER HEALTH CHECK ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -49,6 +48,9 @@ def fetch_and_analyze_market():
         response = requests.get(url, timeout=10)
         data = response.json()
         
+        if not isinstance(data, list) or len(data) == 0:
+            return f"⚠️ Received empty data from exchange for {TRADING_SYMBOL}."
+            
         columns = [
             'open_time', 'open', 'high', 'low', 'close', 'volume',
             'close_time', 'quote_asset_volume', 'num_trades',
@@ -77,10 +79,9 @@ def fetch_and_analyze_market():
         logger.error(f"Data fetch error: {e}")
         return f"⚠️ Error fetching live data for {TRADING_SYMBOL}: {e}"
 
-# --- MARKET WICK & ANALYSIS SCANNER LOOP ---
+# --- MARKET WICK SCANNER LOOP ---
 async def market_wick_scanner(application):
     eastern_tz = pytz.timezone('America/New_York')
-    
     while True:
         try:
             now_eastern = datetime.now(eastern_tz)
@@ -88,62 +89,54 @@ async def market_wick_scanner(application):
             current_minute = now_eastern.minute
             
             if current_hour == 12 and current_minute == 45:
-                logger.info("Executing 12:45 PM USA Market Wick Scan...")
                 market_report = fetch_and_analyze_market()
                 for admin_id in ALLOWED_USER_IDS:
                     try:
-                        await application.bot.send_message(
-                            chat_id=admin_id,
-                            text=f"📊 **12:45 PM USA Scan Report:**\n{market_report}"
-                        )
+                        await application.bot.send_message(chat_id=admin_id, text=f"📊 **12:45 PM USA Scan:**\n{market_report}")
                     except Exception as e:
-                        logger.error(f"Failed to send 12:45 alert: {e}")
+                        logger.error(f"Failed alert: {e}")
                 await asyncio.sleep(70)
 
             elif current_hour == 13 and current_minute == 29:
-                logger.info("Executing 1:29 PM USA Market Adjustment Scan...")
                 market_report = fetch_and_analyze_market()
                 for admin_id in ALLOWED_USER_IDS:
                     try:
-                        await application.bot.send_message(
-                            chat_id=admin_id,
-                            text=f"📊 **1:29 PM USA Adjustment Report:**\n{market_report}"
-                        )
+                        await application.bot.send_message(chat_id=admin_id, text=f"📊 **1:29 PM USA Adjustment:**\n{market_report}")
                     except Exception as e:
-                        logger.error(f"Failed to send 1:29 alert: {e}")
+                        logger.error(f"Failed alert: {e}")
                 await asyncio.sleep(70)
-
         except Exception as err:
-            logger.error(f"Error in market scanner loop: {err}")
-        
+            logger.error(f"Loop error: {err}")
         await asyncio.sleep(30)
 
 async def post_init(application):
     asyncio.create_task(market_wick_scanner(application))
 
-# --- TELEGRAM COMMAND HANDLERS ---
+# --- TELEGRAM HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_authorized(user_id):
-        await update.message.reply_text("Unauthorized access.")
+    if not is_authorized(update.effective_user.id):
         return
     await update.message.reply_text(
         "🤖 **Smart Bot Online & Analytics Ready!**\n\n"
         "✅ Web server health check active\n"
-        "✅ USA Market Wick Scanner active (12:45 PM / 1:29 PM)\n"
+        "✅ USA Market Wick Scanner active\n"
         "✅ Live Pandas data processor online\n\n"
-        "Use `/scan` anytime to check live market wicks manually."
+        "Use `/scan` to check live market wicks."
     )
 
 async def manual_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_authorized(user_id):
+    if not is_authorized(update.effective_user.id):
         return
     await update.message.reply_text("🔄 Pulling live market analysis...")
     report = fetch_and_analyze_market()
     await update.message.reply_text(report)
 
-# --- MAIN EXECUTION ---
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_user.id):
+        return
+    await update.message.reply_text("💡 I am your automated quantitative trading assistant. Use `/scan` to view current Binance market metrics.")
+
+# --- MAIN ---
 def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
@@ -161,6 +154,7 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("scan", manual_scan))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     application.run_polling()
 
