@@ -5,16 +5,21 @@ from datetime import datetime
 import pytz
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import requests
-import pandas as pd
+import google.generativeai as genai
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# --- CONFIGURATION ---
-TOKEN = "8819821570:AAHWqwkMVMUOWEWwOaL-DcrSveEVvZphSY4"
+# --- CONFIGURATION (Loaded safely from Environment Variables) ---
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ALLOWED_USER_IDS = [6124380017]
-TRADING_SYMBOL = "BTCUSDT"
+
+# Configure Gemini AI & Self-Learning Memory Bank
+genai.configure(api_key=GEMINI_API_KEY)
+ai_model = genai.GenerativeModel("gemini-2.5-flash")
+
+MARKET_LEARNING_MEMORY = []
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -41,120 +46,101 @@ def run_web_server():
     server = HTTPServer(('0.0.0.0', 10000), SimpleHandler)
     server.serve_forever()
 
-# --- LIVE MARKET DATA & WICK ANALYSIS MODULE ---
-def fetch_and_analyze_market():
+# --- SELF-LEARNING UNIVERSAL AI RESEARCH ENGINE ---
+def universal_market_research_with_learning(query: str) -> str:
     try:
-        url = f"https://api.binance.com/api/v3/klines?symbol={TRADING_SYMBOL}&interval=15m&limit=20"
-        response = requests.get(url, timeout=10)
-        data = response.json()
+        memory_context = "\n".join(MARKET_LEARNING_MEMORY[-5:]) if MARKET_LEARNING_MEMORY else "No prior patterns recorded yet."
         
-        if not isinstance(data, list) or len(data) == 0:
-            return f"⚠️ Received empty data from exchange for {TRADING_SYMBOL}."
-            
-        columns = [
-            'open_time', 'open', 'high', 'low', 'close', 'volume',
-            'close_time', 'quote_asset_volume', 'num_trades',
-            'taker_buy_base', 'taker_buy_quote', 'ignore'
-        ]
-        df = pd.DataFrame(data, columns=columns)
-        
-        df['high'] = df['high'].astype(float)
-        df['low'] = df['low'].astype(float)
-        df['open'] = df['open'].astype(float)
-        df['close'] = df['close'].astype(float)
-        
-        highest_wick = df['high'].max()
-        lowest_wick = df['low'].min()
-        current_price = df['close'].iloc[-1]
-        
-        analysis_text = (
-            f"📈 **Market Analysis ({TRADING_SYMBOL})**\n"
-            f"• Current Price: `{current_price}`\n"
-            f"• Highest Wick: `{highest_wick}`\n"
-            f"• Lowest Wick: `{lowest_wick}`\n"
-            f"Status: Key institutional bounds mapped successfully via Pandas."
+        prompt = (
+            f"You are an advanced quantitative self-learning trading assistant. "
+            f"Analyze the asset, pair, stock, index, or crypto requested: '{query}'.\n\n"
+            f"Recent historical market learning database and pattern notes:\n{memory_context}\n\n"
+            f"Provide a thorough institutional breakdown: current trend perspective, psychological market behavior, support/resistance levels, and any new behavioral anomalies detected. "
+            f"Conclude with a single-line summary pattern insight that the system should learn from for future scans."
         )
-        return analysis_text
+        
+        response = ai_model.generate_content(prompt)
+        analysis_result = response.text
+        
+        MARKET_LEARNING_MEMORY.append(f"Asset: {query} | Timestamp: {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M')} | Insight logged.")
+        return analysis_result
     except Exception as e:
-        logger.error(f"Data fetch error: {e}")
-        return f"⚠️ Error fetching live data for {TRADING_SYMBOL}: {e}"
-
-# --- MARKET WICK SCANNER LOOP ---
-async def market_wick_scanner(application):
-    eastern_tz = pytz.timezone('America/New_York')
-    while True:
-        try:
-            now_eastern = datetime.now(eastern_tz)
-            current_hour = now_eastern.hour
-            current_minute = now_eastern.minute
-            
-            if current_hour == 12 and current_minute == 45:
-                market_report = fetch_and_analyze_market()
-                for admin_id in ALLOWED_USER_IDS:
-                    try:
-                        await application.bot.send_message(chat_id=admin_id, text=f"📊 **12:45 PM USA Scan:**\n{market_report}")
-                    except Exception as e:
-                        logger.error(f"Failed alert: {e}")
-                await asyncio.sleep(70)
-
-            elif current_hour == 13 and current_minute == 29:
-                market_report = fetch_and_analyze_market()
-                for admin_id in ALLOWED_USER_IDS:
-                    try:
-                        await application.bot.send_message(chat_id=admin_id, text=f"📊 **1:29 PM USA Adjustment:**\n{market_report}")
-                    except Exception as e:
-                        logger.error(f"Failed alert: {e}")
-                await asyncio.sleep(70)
-        except Exception as err:
-            logger.error(f"Loop error: {err}")
-        await asyncio.sleep(30)
-
-async def post_init(application):
-    asyncio.create_task(market_wick_scanner(application))
+        logger.error(f"AI self-learning research error: {e}")
+        return f"⚠️ Error processing self-learning module for '{query}': {e}"
 
 # --- TELEGRAM HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
         return
     await update.message.reply_text(
-        "🤖 **Smart Bot Online & Analytics Ready!**\n\n"
-        "✅ Web server health check active\n"
-        "✅ USA Market Wick Scanner active\n"
-        "✅ Live Pandas data processor online\n\n"
-        "Use `/scan` to check live market wicks."
+        "🧠 **Self-Learning AI Trading & Research Bot Online!**\n\n"
+        "I am fully configured with my Gemini cognitive engine and internal learning memory bank. I can scan **any asset, stock, crypto, index, or forex pair** and adapt to new market behaviors over time.\n\n"
+        "💡 **Commands:**\n"
+        "• `/scan [Asset]` - Deep dynamic research & pattern tracking\n"
+        "• `/memory` - View active self-learning patterns stored by the bot\n"
+        "• Or chat with me normally about any strategy or concept!"
     )
 
-async def manual_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
         return
-    await update.message.reply_text("🔄 Pulling live market analysis...")
-    report = fetch_and_analyze_market()
+    if not context.args:
+        await update.message.reply_text("⚠️ Please specify an asset to scan. Example: `/scan EURUSD` or `/scan Gold`")
+        return
+    
+    asset_query = " ".join(context.args)
+    await update.message.reply_text(f"🔄 Executing self-learning scan and behavioral pattern analysis for `{asset_query}`...")
+    
+    loop = asyncio.get_running_loop()
+    report = await loop.run_in_executor(None, universal_market_research_with_learning, asset_query)
     await update.message.reply_text(report)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def view_memory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
         return
-    await update.message.reply_text("💡 I am your automated quantitative trading assistant. Use `/scan` to view current Binance market metrics.")
+    if not MARKET_LEARNING_MEMORY:
+        await update.message.reply_text("🧠 Learning memory bank is currently empty. Run a few `/scan` commands to start building patterns!")
+        return
+    
+    memory_text = "🧠 **Active Self-Learning Pattern Bank:**\n\n" + "\n".join([f"• {item}" for item in MARKET_LEARNING_MEMORY[-10:]])
+    await update.message.reply_text(memory_text)
 
-# --- MAIN ---
+async def handle_conversational_ai(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_message = update.message.text
+    await update.message.chat.send_action("typing")
+    
+    try:
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None, 
+            lambda: ai_model.generate_content(f"You are an expert quantitative self-learning assistant. Answer accurately, taking market adaptability into account: {user_message}")
+        )
+        await update.message.reply_text(response.text)
+    except Exception as e:
+        logger.error(f"AI Chat Error: {e}")
+        await update.message.reply_text("⚠️ Sorry, I encountered an error processing your query.")
+
 def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
     application = (
         ApplicationBuilder()
-        .token(TOKEN)
+        .token(TELEGRAM_TOKEN)
         .connect_timeout(30)
         .read_timeout(30)
         .write_timeout(30)
         .pool_timeout(30)
-        .post_init(post_init)
         .build()
     )
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("scan", manual_scan))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CommandHandler("scan", scan_command))
+    application.add_handler(CommandHandler("memory", view_memory_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_conversational_ai))
 
     application.run_polling()
 
