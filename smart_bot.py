@@ -32,7 +32,7 @@ def is_authorized(user_id: int) -> bool:
         return True
     return user_id in ALLOWED_USER_IDS
 
-# --- WEB SERVER HEALTH CHECK ---
+# --- WEB SERVER HEALTH CHECK (For Render) ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -110,8 +110,8 @@ async def handle_conversational_ai(update: Update, context: ContextTypes.DEFAULT
         )
         await update.message.reply_text(response.text)
     except Exception as e:
-        logger.error(f"Chat Error: {e}")
-        await update.message.reply_text("⚠️ Sorry, I encountered an error processing your query.")
+        logger.error(f"Chat Error Details: {e}")
+        await update.message.reply_text(f"⚠️ Debug Error: {str(e)}")
 
 def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
