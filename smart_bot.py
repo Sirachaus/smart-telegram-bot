@@ -5,19 +5,18 @@ from datetime import datetime
 import pytz
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import google.generativeai as genai
+from google import genai
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# --- CONFIGURATION (Loaded safely from Environment Variables) ---
+# --- CONFIGURATION ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ALLOWED_USER_IDS = [6124380017]
 
-# Configure Gemini AI & Self-Learning Memory Bank
-genai.configure(api_key=GEMINI_API_KEY)
-ai_model = genai.GenerativeModel("gemini-2.5-flash")
+# Initialize the official Google GenAI client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 MARKET_LEARNING_MEMORY = []
 
@@ -59,7 +58,10 @@ def universal_market_research_with_learning(query: str) -> str:
             f"Conclude with a single-line summary pattern insight that the system should learn from for future scans."
         )
         
-        response = ai_model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
         analysis_result = response.text
         
         MARKET_LEARNING_MEMORY.append(f"Asset: {query} | Timestamp: {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M')} | Insight logged.")
@@ -116,7 +118,10 @@ async def handle_conversational_ai(update: Update, context: ContextTypes.DEFAULT
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None, 
-            lambda: ai_model.generate_content(f"You are an expert quantitative self-learning assistant. Answer accurately, taking market adaptability into account: {user_message}")
+            lambda: client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=f"You are an expert quantitative self-learning assistant. Answer accurately, taking market adaptability into account: {user_message}"
+            )
         )
         await update.message.reply_text(response.text)
     except Exception as e:
